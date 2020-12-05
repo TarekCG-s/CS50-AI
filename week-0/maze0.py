@@ -1,7 +1,7 @@
 import sys
 import abc
 
-class BaseFrontier:
+class BaseFrontier(abc.ABC):
     """
         Dynamic list to store explored nodes and nodes to explore.
     """
