@@ -1,16 +1,19 @@
 import sys
 import abc
+import math
+
 
 class BaseFrontier(abc.ABC):
     """
-        Dynamic list to store explored nodes and nodes to explore.
+    Dynamic list to store explored nodes and nodes to explore.
     """
+
     def __init__(self):
         self.nodes = list()
         self.explored_nodes = list()
-    
+
     def add(self, node):
-        """ Adds new node to the list of nodes to explore.
+        """Adds new node to the list of nodes to explore.
 
         Args:
             node ([Node]): node object to explore.
@@ -20,27 +23,29 @@ class BaseFrontier(abc.ABC):
         return
 
     def is_empty(self):
-        """ Checks if the frontier has remaining nodes to explore or not.
+        """Checks if the frontier has remaining nodes to explore or not.
 
         Returns:
             [Bool]
         """
         return len(self.nodes) == 0
-    
+
     @abc.abstractclassmethod
     def remove(self):
         """
-            Removes a node from the list in order to explore it. 
-            This method is meant to be overriden by inheriting classes base on its data structure.
+        Removes a node from the list in order to explore it.
+        This method is meant to be overriden by inheriting classes base on its data structure.
         """
         pass
 
+
 class StackFrontier(BaseFrontier):
-    """ Frontier based on Stack data structre.
+    """Frontier based on Stack data structre.
 
     Args:
         BaseFrontier ([BaseFrontier])
     """
+
     def remove(self):
         """Removes last added node from frontier.
 
@@ -52,12 +57,14 @@ class StackFrontier(BaseFrontier):
         self.explored_nodes.append(node)
         return node
 
+
 class QueueFrontier(BaseFrontier):
-    """ Frontier based on Queue data structre.
+    """Frontier based on Queue data structre.
 
     Args:
         BaseFrontier ([BaseFrontier])
     """
+
     def remove(self):
         """Removes first added node from frontier.
 
@@ -69,13 +76,68 @@ class QueueFrontier(BaseFrontier):
         self.explored_nodes.append(node)
         return node
 
+
+class GreedyFrontier(BaseFrontier):
+    """Frontier based on Queue data structre.
+
+    Args:
+        BaseFrontier ([BaseFrontier])
+    """
+
+    def remove(self):
+        """Removes first added node from frontier.
+
+        Returns:
+            [Node]: node to explore.
+        """
+        smallest_node = self.nodes[0]
+        for node in self.nodes:
+            if node.distance_to_target < smallest_node.distance_to_target:
+                smallest_node = node
+
+        self.nodes.remove(smallest_node)
+        self.explored_nodes.append(smallest_node)
+        return smallest_node
+
+
+class AStarFrontier(BaseFrontier):
+    """Frontier based on Queue data structre.
+
+    Args:
+        BaseFrontier ([BaseFrontier])
+    """
+
+    def remove(self):
+        """Removes first added node from frontier.
+
+        Returns:
+            [Node]: node to explore.
+        """
+        smallest_node = self.nodes[0]
+        for node in self.nodes:
+            if (
+                node.distance_to_target + node.steps_taken
+                < smallest_node.distance_to_target + smallest_node.steps_taken
+            ):
+                smallest_node = node
+
+        self.nodes.remove(smallest_node)
+        self.explored_nodes.append(smallest_node)
+        return smallest_node
+
+
 class Node:
     """
-        Class for storing each cell data.
+    Class for storing each cell data.
     """
-    def __init__(self, state, x, y, action=None, parent=None):
+
+    def __init__(
+        self, state, x, y, steps_taken, distance_to_target, action=None, parent=None
+    ):
         self.state = state
         self.parent = parent
+        self.steps_taken = steps_taken
+        self.distance_to_target = distance_to_target
         self.x = x
         self.y = y
         self.action = action
@@ -95,15 +157,17 @@ class Node:
     def __ne__(self, other):
         return not self.__eq__(other)
 
+
 class Maze:
     """
-        Class for creating a maze, solving it and exporting the solution as either an image or a txt file.
+    Class for creating a maze, solving it and exporting the solution as either an image or a txt file.
     """
-    START = 'A'
-    TARGET = 'B'
+
+    START = "A"
+    TARGET = "B"
 
     def __init__(self, filename):
-        """ Creating new maze.
+        """Creating new maze.
 
         Args:
             filename ([str]): File name of the maze.
@@ -126,12 +190,19 @@ class Maze:
             Bool: Success status of solving maze. True if a path was found. False otherwise.
         """
         x, y = self.start_point[0], self.start_point[1]
-        node = Node(self.maze_arr[x][y], x, y)
+        node = Node(
+            self.maze_arr[y][x], x, y, 0, self._calculate_distance_to_target(x, y)
+        )
         frontier.add(node)
-        while(not frontier.is_empty()):
+        while not frontier.is_empty():
             self.steps += 1
             node = frontier.remove()
-            self.maze_arr[node.x][node.y] = '/' if self.maze_arr[node.x][node.y] == ' ' else self.maze_arr[node.x][node.y]
+            self.maze_arr[node.y][node.x] = (
+                "/"
+                if self.maze_arr[node.y][node.x] == " "
+                else self.maze_arr[node.y][node.x]
+            )
+
             if node.state == self.TARGET:
                 self._apply_solution(node)
                 return True
@@ -141,45 +212,53 @@ class Maze:
         return False
 
     def draw_image(self, filename):
-        """ Draws maze as an image.
+        """Draws maze as an image.
 
         Args:
             filename (str): Name of the generated image file.
         """
-        from PIL import Image, ImageDraw
+        from PIL import Image, ImageDraw, ImageFont
+
         CELL_WIDTH = 70
         COLORS = {
-            '#': (40, 40, 40),
+            "#": (40, 40, 40),
             self.START: (0, 0, 200),
             self.TARGET: (0, 171, 28),
-            '*': (220, 235, 113),
-            '/': (212, 97, 85),
-            ' ': (237, 240, 252),
-            }
+            "*": (220, 235, 113),
+            "/": (212, 97, 85),
+            " ": (237, 240, 252),
+        }
         height = CELL_WIDTH * len(self.maze_arr)
         width = CELL_WIDTH * len(self.maze_arr[0])
-        img = Image.new('RGB', (width, height))
+        img = Image.new("RGB", (width, height))
         draw = ImageDraw.Draw(img)
         for i, row in enumerate(self.maze_arr):
             for j, col in enumerate(row):
                 color = COLORS.get(col)
-                shape = [(j * CELL_WIDTH, i * CELL_WIDTH), ((j * CELL_WIDTH) + CELL_WIDTH , (i * CELL_WIDTH) + CELL_WIDTH)]
-                draw.rectangle(shape, fill=color, outline='black')
+                shape = [
+                    (j * CELL_WIDTH, i * CELL_WIDTH),
+                    ((j * CELL_WIDTH) + CELL_WIDTH, (i * CELL_WIDTH) + CELL_WIDTH),
+                ]
+                draw.rectangle(shape, fill=color, outline="black")
+                draw.text(
+                    (j * CELL_WIDTH, i * CELL_WIDTH),
+                    str(self._calculate_distance_to_target(j, i)),
+                    fill="black",
+                )
         img.save(filename)
 
     def write_solved_maze_file(self):
-        """ Generates text file for the solution of the maze.
-        """
-        filename = self.filename.split('.')
-        filename = filename[0] + '_solved.' + filename[1]
-        with open(filename, 'w') as file:
+        """Generates text file for the solution of the maze."""
+        filename = self.filename.split(".")
+        filename = filename[0] + "_solved." + filename[1]
+        with open(filename, "w") as file:
             for row in self.maze_arr:
-                row.append('\n')
-                file.writelines(''.join(row))
+                row.append("\n")
+                file.writelines("".join(row))
         return
 
     def _parse_maze_file(self):
-        """ Converts Maze file to a two dimensional list.
+        """Converts Maze file to a two dimensional list.
 
         Returns:
             [List]: Maze data as list.
@@ -187,11 +266,11 @@ class Maze:
         maze_arr = list()
         with open(self.filename, "r") as file:
             for line in file:
-                maze_arr.append(list(line.rstrip('\n')))
+                maze_arr.append(list(line.rstrip("\n")))
         return maze_arr
 
     def _get_start_end_points(self):
-        """ Looks for Start point and target point indecies.
+        """Looks for Start point and target point indecies.
 
         Returns:
             Tuple, Tuple : Two Tuples of x and y coordinates of start and target points.
@@ -201,16 +280,16 @@ class Maze:
         for i, row in enumerate(self.maze_arr):
             for j, cell in enumerate(row):
                 if cell == self.START:
-                    starting_point = (i, j)
+                    starting_point = (j, i)
                 elif cell == self.TARGET:
-                    ending_point = (i, j)
+                    ending_point = (j, i)
         return starting_point, ending_point
 
     def _validate_maze_points(self):
-        """ Validates inserted maze file.
+        """Validates inserted maze file.
 
         Raises:
-            Exception: If maze file is either: 
+            Exception: If maze file is either:
                             - Empyt.
                             - Doesn't have consistent row width.
                             - Doesn't include start and target point.
@@ -223,20 +302,20 @@ class Maze:
         if len(self.end_point) != 2 or len(self.start_point) != 2:
             raise Exception("Maze doesn't contain start and end points")
         return
-    
+
     def _apply_solution(self, node):
-        """ Inserts * on the descovered path.
+        """Inserts * on the descovered path.
 
         Args:
             node ([Node]): Node of the found target to traceback the followed path.
         """
         node = node.parent
         while node.state != self.START:
-            self.maze_arr[node.x][node.y] = '*'
+            self.maze_arr[node.y][node.x] = "*"
             node = node.parent
-        
+
     def _get_state(self, x, y):
-        """ Returns the state of a given coordindates.
+        """Returns the state of a given coordindates.
 
         Args:
             x ([int]): Cell X coordinate
@@ -245,10 +324,10 @@ class Maze:
         Returns:
             [type]: [description]
         """
-        return self.maze_arr[x][y]
-    
+        return self.maze_arr[y][x]
+
     def _get_neighbors(self, node):
-        """ Creates nodes for potential paths to explore.
+        """Creates nodes for potential paths to explore.
 
         Args:
             node ([Node]): node object to check its surrounding paths.
@@ -256,18 +335,28 @@ class Maze:
         Returns:
             [List]: List of all available surrounding nodes.
         """
-        movements = ['UP', 'LEFT', 'DOWN', 'RIGHT']
+        movements = ["UP", "LEFT", "DOWN", "RIGHT"]
         availabe_nodes = list()
         for movement in movements:
             coords = self._next_cell(node.x, node.y, movement)
             if coords:
                 x, y = coords
-                new_node = Node(self._get_state(x, y), x, y, movement, node)
+                steps_taken = node.steps_taken + 1
+                distance_to_target = self._calculate_distance_to_target(x, y)
+                new_node = Node(
+                    self._get_state(x, y),
+                    x,
+                    y,
+                    steps_taken,
+                    distance_to_target,
+                    action=movement,
+                    parent=node,
+                )
                 availabe_nodes.append(new_node)
         return availabe_nodes
 
     def _next_cell(self, x, y, movement):
-        """ Validates nearby cells.
+        """Validates nearby cells.
 
         Args:
             x ([int]): Node X coordinate
@@ -277,27 +366,30 @@ class Maze:
         Returns:
             [Tuple]: Tuple of X, Y coordinates of the available cell if it's not a wall. None otherwise.
         """
-        if movement == 'UP':
-            x = x - 1
-            if x < 0 or self.maze_arr[x][y] =='#':
-                return None
-
-        elif movement == 'DOWN':
-            x = x + 1
-            if x >= self.rows_count or self.maze_arr[x][y] =='#':
-                return None
-
-        elif movement == 'LEFT':
+        if movement == "UP":
             y = y - 1
-            if y < 0 or self.maze_arr[x][y] =='#':
+            if y < 0 or self.maze_arr[y][x] == "#":
                 return None
 
-        elif movement == 'RIGHT':
+        elif movement == "DOWN":
             y = y + 1
-            if y >= self.cells_count or self.maze_arr[x][y] =='#':
+            if y >= self.rows_count or self.maze_arr[y][x] == "#":
                 return None
 
+        elif movement == "LEFT":
+            x = x - 1
+            if x < 0 or self.maze_arr[y][x] == "#":
+                return None
+
+        elif movement == "RIGHT":
+            x = x + 1
+            if x >= self.cells_count or self.maze_arr[y][x] == "#":
+                return None
         return (x, y)
+
+    def _calculate_distance_to_target(self, x, y):
+        result = abs(self.end_point[0] - x) + abs(self.end_point[1] - y)
+        return result
 
 
 if __name__ == "__main__":
@@ -308,7 +400,9 @@ if __name__ == "__main__":
     filename = sys.argv[1]
     maze = Maze(filename)
     # frontier = StackFrontier()
-    frontier = QueueFrontier()
+    # frontier = QueueFrontier()
+    # frontier = GreedyFrontier()
+    frontier = AStarFrontier()
     maze.solve(frontier)
     print(maze.steps)
-    maze.draw_image(filename.split('.')[0] + '.png')
+    maze.draw_image(filename.split(".")[0] + ".png")
